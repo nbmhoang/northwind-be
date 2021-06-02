@@ -19,6 +19,6 @@ class Customer:
             'contact_name': self.contact_name,
             'address': self.address,
             'city': self.city,
-            'portal_code': self.postal_code,
+            'postal_code': self.postal_code,
             'country': self.country
         }
