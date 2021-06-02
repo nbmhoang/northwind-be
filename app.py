@@ -1,9 +1,18 @@
 from flask import Flask, json
 from flask import jsonify
 from flask import request
+from time import time
+
+from flask import send_file
 
 from .actions.customer_action import CustomerAction
-from .models.customer_model import Customer 
+from .models.customer_model import Customer
+from .actions.order_action import OrderAction
+from .actions.employee_action import EmployeeAction
+from .models.order_model import Order
+from .models.employee_model import Employee
+from .models.shipper_model import Shipper
+from .models import employee_model
 
 
 app = Flask(__name__)
@@ -98,3 +107,83 @@ def add_customer():
     return jsonify({
         'message': result
     }), 201
+
+@app.route('/orders')
+def get_all_order():
+    order_action = OrderAction(connection_data)
+    orders = order_action.get_all()
+    return jsonify(orders)
+
+@app.route('/order/<int:id>')
+def get_order_by_id(id):
+    order_action = OrderAction(connection_data)
+    result, status_code = order_action.get_by_id(id)
+    if status_code == 200:
+        return jsonify(result.serialize()), status_code
+    return jsonify({
+        'message': result
+    }), status_code
+
+@app.route('/order', methods=['POST'])
+def add_order():
+    # form_data = request.form
+    data = request.json
+
+    customer_id = data.get('customer_id', 0)
+    employee_id = data.get('employee_id', 0)
+    shipper_id = data.get('shipper_id', 0)
+    order_date = data.get('order_date', '')
+
+    customer = Customer(customer_id=customer_id)
+    employee = Employee(employee_id=employee_id)
+    shipper = Shipper(shipper_id=shipper_id)
+
+    order = Order(customer=customer, employee=employee,  order_date=order_date, shipper=shipper)
+
+    action = OrderAction(connection_data)
+    message = action.add(order)
+    return jsonify({
+        'message': message
+    })
+
+# Write API for Order
+
+@app.route('/employees')
+def get_all_employee():
+    action = EmployeeAction(connection_data)
+    employees = action.get_all()
+    return jsonify(employees)
+
+
+@app.route('/employee', methods=['POST'])
+def add_employee():
+    form_data = request.form
+
+    birth_date = form_data.get('birth_date', '01/01/2000')
+    first_name = form_data.get('first_name', '')
+    last_name = form_data.get('last_name', '')
+    notes = form_data.get('notes', '')
+    # Timestamp
+    # UUID
+    photo = request.files['photo']
+
+    filename = str(int(time())) + '.jpg'
+    photo.save(f'uploads/{filename}')
+
+    employee = employee_model.Employee(
+        last_name=last_name,
+        first_name=first_name,
+        birth_date=birth_date,
+        notes=notes,
+        photo=filename
+    )
+
+    action = EmployeeAction(connection_data)
+    result = action.add(employee)
+    return jsonify({
+        'message': result
+    })
+
+@app.route('/images/<string:image_name>')
+def get_images(image_name):
+    return send_file(f'uploads/{image_name}', mimetype='image/jpeg')
