@@ -1,9 +1,13 @@
 from flask import Flask, json
 from flask import jsonify
 from flask import request
+from flask import send_file
 from time import time
 
-from flask import send_file
+from flask_jwt_extended import create_access_token
+from flask_jwt_extended import get_jwt_identity
+from flask_jwt_extended import jwt_required
+from flask_jwt_extended import JWTManager
 
 from .actions.customer_action import CustomerAction
 from .models.customer_model import Customer
@@ -13,9 +17,14 @@ from .models.order_model import Order
 from .models.employee_model import Employee
 from .models.shipper_model import Shipper
 from .models import employee_model
+from .actions.user_action import UserAction
+from .models import user_model
 
 
 app = Flask(__name__)
+
+app.config['JWT_SECRET_KEY'] = 'zxljvo9w48llsdjhfs'
+jwt = JWTManager(app)
 
 connection_data = './db.sqlite3'
 
@@ -149,10 +158,16 @@ def add_order():
 # Write API for Order
 
 @app.route('/employees')
+@jwt_required
 def get_all_employee():
-    action = EmployeeAction(connection_data)
-    employees = action.get_all()
-    return jsonify(employees)
+    current_user = get_jwt_identity()
+    if current_user['role'] == 'admin':
+        action = EmployeeAction(connection_data)
+        employees = action.get_all()
+        return jsonify(employees)
+    return jsonify({
+        'message': 'You donot have permission'
+    }), 403
 
 
 @app.route('/employee', methods=['POST'])
@@ -187,3 +202,25 @@ def add_employee():
 @app.route('/images/<string:image_name>')
 def get_images(image_name):
     return send_file(f'uploads/{image_name}', mimetype='image/jpeg')
+
+
+@app.route('/login', methods=['POST'])
+def login():
+    username = request.json.get('username', None)
+    password = request.json.get('password', None)
+    if username == None or password is None:
+        return jsonify({
+            'message': 'Missing username or password'
+        }), 400
+    
+    user_action = UserAction(connection_data)
+    result, status_code = user_action.login(user_model.User(username=username, password=password))
+    if status_code != 200:
+        return jsonify({
+            'message': result
+        }), status_code
+    # Luu thong tin user vao token
+    access_token = create_access_token(identity=result.serialize())
+    return jsonify({
+        'token': access_token
+    })
